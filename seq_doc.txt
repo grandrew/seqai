@@ -1,4 +1,15 @@
+General AI thoughts:
+- classification (it IS -consequence conection?!)
+- analyze input by different techniques: see what eyes do, what ears do, etc.
+- create models
+- optimize on models
+- zakonomernosti?? search for correlations and algorithms?
+
 Sequence analyzer
+
+TODO:
+- implement fuzzy compare algorithm
+- db store
 
 new thoughts
 - two modes:

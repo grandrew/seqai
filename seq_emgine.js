@@ -74,7 +74,14 @@ function find_similarities(s, ts) {
   // invent optimal glance algorithm...
 
   // when no seq is given, analyze further in DB.thus store in simd info on stopped size and DB
-  // /traverse or brute/ position 
+  // /traverse or brute/ position
+
+
+    /*
+      partially use the same techniques as think() or dream(), with dream() using
+      them more. Control the time spent on one-time thinking somehow?
+    */ 
+    
 }
 
 
