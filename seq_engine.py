@@ -29,9 +29,20 @@ def dream():
 def string_match(s1, s2):
     return difflib.SequenceMatcher(None, s1, s2).ratio()
 
+# the new algorithm from the old:
+# - create marks to mark chunk start and chunk end 
+# >> raw (L0) chunk is actually data start(absolute or -length), length, input datetime, input lag, links with weights) links are also linking time frames and within raw input chunk links have more weight
+# >> L1 chunk is M1 linked chunks (in any direction) that are treated as one chunk with top N links better is when links are to the same chunk inside L1 chunk since weight is summarized
+# >> Ln chunk is M2 L1 chunks closely linked
+# good chunks have many internal links and less good external links
+# good links are links to objects that have not very much links to and from
+# when the amount of links becomes too much - drop its processing
+# TODO: link weight and links amount? weight is more within one bigger chunk, less between chunks
+
 def string_subchunk(sInput):
     # return possible sub-chunks (?)
     # todo: data-independent
+    lWords = sInput.split()
     pass
 
 def parametrize_chunk(chunk):
