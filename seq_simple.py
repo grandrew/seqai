@@ -1,26 +1,29 @@
 # simple test of seqai algo
 
-import sys,difflib,thread,random,math,time
+import sys,difflib,thread,random,math,time,traceback
 import collections
 
 # COEFF_LIKE_TIME = 0.2 # time likeness coefficient
 
 
 
-STATS = {"links": 0, "groups": 0, "chunks":0}
+STATS = {"deepness":0, "LikeLink": 0, "CauseLink": 0, "groups": 0, "chunks":0}
 
 class ListLike():
     def __init__(self, initlist = []):
-        self.data = collections.OrderedDict()
+        #self.data = collections.OrderedDict()
+        self.s = set()
+        self.l = initlist
         for ob in initlist:
-            self.data[hash(ob)] = ob
+            self.s.add(ob)
     def append(self, ob):
-        if not hash(ob) in self.data: 
-            self.data[hash(ob)] = ob
+        if not ob in self.s: 
+            self.s.add(ob)
+            self.l.append(ob)
     def __len__(self):
-        return len(self.data)
+        return len(self.l)
     def __getitem__(self, key):
-        return self.data[key]
+        return self.l[key]
 
 # Chunk is a simplest data atom
 
@@ -34,12 +37,18 @@ class LikeLink():
         else:
             self.tofrom = [lfrom, lto]
         self.value = value
-        STATS["links"]+=1
+        STATS[self.__class__.__name__]+=1
 
     def checkme(self, el):
         if el in self.tofrom:
             return True
         return False
+
+    def to(self, other):
+        # use caller to identify?
+        if self.tofrom[0] == other: return self.tofrom[1]
+        if self.tofrom[1] == other: return self.tofrom[0]
+        raise ValueError("Link .to() should be called with one of existing elements!")
 
     def __repr__(self):
         return "<%s Weight:%s From:%s To:%s>" % (self.__class__.__name__, self.value, repr(self.tofrom[0]), repr(self.tofrom[1]))
@@ -76,12 +85,10 @@ class StringChunk():
     def __hash__(self):
         return hash(self.data)+self.timeStart+self.timeEnd
 
-    def __cmp__(self, other):
-        if (self.data == self.other) and (self.timeStart == other.timeStart) and (self.timeEnd == other.timeEnd):
-            return 0
-        rv = self.value - other.value
-        if rv == 0: return 1
-        else: return rv
+    def __eq__(self, other):
+        if (self.data == other.data) and (self.timeStart == other.timeStart) and (self.timeEnd == other.timeEnd):
+            return True
+        return False
 
 class Group():
     def __init__(self, elements):
@@ -175,23 +182,31 @@ def coma_group_iter(lgroups):
         curGroup = random.choice(lgroups)
         l_elements=[curGroup]
         while deep < max_deep:
-            # several different algorithms for different search
-            # find all snips
-            # also set up a group weight based on int links count
-            # or just continue to drop small or lined groups?
-            # OR maybe this thing should just FILTER OUT bad groups
-            if curGroup.__class__.__name__ != "Group": break
-            curGroup=random.choice(curGroup.elements)
+            #if curGroup.__class__.__name__ != "Group": break # TODO: unnessessary check?
+            if len(curGroup.links) == 0: break
+            curGroup=random.choice(curGroup.links).to(curGroup)
             l_elements.append(curGroup)
-            deep=+1
-        lgroups.append(Group(elements=l_elements)) # TODO: do not append group-of one group-of one group!
+            deep+=1
+        # TODO: filter out 'bad' groups? or clean garbage?
+        if len(l_elements) > 1:
+            lgroups.append(Group(elements=l_elements)) # TODO: do not append group-of one group-of one group!
+            STATS["deepness"]+=deep
 
 def dream_iter(lgroups):
-    "dreaming is following input time links and creating paths"
-    # TODO HERE: remove code that dreams in coma and implement true dreaming
-    # we need to distinguish eam paths and somehow implement relative timestamps
-    # implement CauseCons class
-    pass
+        "dreaming is following input time links and creating paths"
+        # change causelink value if context follows more times?
+        # TODO: follow only groups that weight more? hmm.. or less? whatever optimization is NOT NOW anyways
+        max_deep = random.randint(2, 100)
+        deep = 0
+        curGroup = random.choice(lgroups)
+        l_elements=[curGroup]
+        while deep < max_deep:
+            nextGroup=random.choice(lgroups)
+            curGroup.links.append(CauseLink(curGroup, nextGroup)) # random cause-consequence? hehe ;-)
+            curGroup = nextGroup
+            deep+=1
+
+# context should add cause-consequence links immediately!
 
 def main():
     "will parse input filename into a holosemantic(?) space"
@@ -211,9 +226,13 @@ def main():
         while i<50000:
             coma_link_iter(lgroups)
             coma_group_iter(lgroups)
+            dream_iter(lgroups)
             i+=1
     except KeyboardInterrupt:
-        print "Done;", i, "iterations"
+        traceback.print_exc()
+        tt = time.time()
+        print "Done;", i, "iterations", tt-ts, "seconds", float(i)/(tt-ts), "it/s"
+        STATS["deepness"] = float(STATS["deepness"])/float(i) # compute average!
         print STATS
         try:
             ibrowse(lgroups)
