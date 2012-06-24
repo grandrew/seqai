@@ -10,22 +10,24 @@ import collections
 STATS = {"deepness":0, "LikeLink": 0, "CauseLink": 0, "groups": 0, "chunks":0}
 
 class ListLike():
-    def __init__(self, initlist = []):
+    def __init__(self, initlist = None):
         #self.data = collections.OrderedDict()
-        self.s = set()
+        if initlist is None:
+            initlist = []
+        self.s = {}
         self.l = initlist
         for ob in initlist:
-            self.s.add(ob)
-    def append(self, ob):
-        if not ob in self.s: 
-            self.s.add(ob)
-            self.l.append(ob)
+            self.s[hash(ob)] = ob
+    def append(self, obj):
+        if not (hash(obj) in self.s):
+            #self.s.add(ob)
+            self.s[hash(obj)] = obj
+            self.l.append(obj)
     def __len__(self):
         return len(self.l)
     def __getitem__(self, key):
         return self.l[key]
 
-# Chunk is a simplest data atom
 
 def Link_compare(x,y):
     return int((x.value - y.value)*1000)
@@ -58,11 +60,18 @@ class LikeLink():
         if self.value > other.value: return 1
         else: return -1
 
-class CauseLink(LikeLink):
-    pass # OMG ?!
+    def __hash__(self):
+        return hash(str(hash(self.tofrom[0]))+str(hash(self.tofrom[1])))
 
+class CauseLink(LikeLink):
+    def cause(self):
+        return self.tofrom[0]
+    def effect(self):
+        return self.tofrom[1]
+
+# Chunk is a simplest data atom
 class StringChunk():
-    def __init__(self, data, timeIn, fname="", seek_start=0, seek_end=0, groups=[], fdata = None):
+    def __init__(self, data, timeIn, fname="", seek_start=0, seek_end=0, groups=None, fdata = None):
         self.data = data
         self.fdata = fdata # fdata is a fd-like object that may be seek()'d to data
         self.fname = fname # thi is a file name of where the text is in
@@ -96,16 +105,17 @@ class Group():
         self.timeStart = 2000000000
         self.timeEnd = -1
         self.elements = elements
-        self.links = []
+        #self.links = []
+        self.links = ListLike()
         self.weight = self.compute_weight() 
         STATS["groups"]+=1
 
     def __hash__(self):
         # only elements
-        sum=0
+        summ=0
         for ob in self.elements:
-            sum += ob.timeStart + ob.timeEnd
-        return sum
+            summ += (ob.timeStart + ob.timeEnd)
+        return summ
     
     def compute_weight(self):
         # get a link weight mean
@@ -122,10 +132,22 @@ class Group():
         # compute mean likeness between all first-order elements??
         # how about comparing very large groups????? -> dive through all links and find if any is linking to current element, use that weight
         
-        # TODO why somebody may be asking to compare a group to a chunk! thats bad!
         if group == self: return 1.0 # TODO: ensure 1.0 means exactly equal
-        if group.__class__.__name__ != "Group": return 0.0
         
+        
+        
+        
+        
+        # ----------------------------------------------------------------------!!!!!!!!!!!!!!!!!!1
+        # TODO why somebody may be asking to compare a group to a chunk! thats bad!
+        if group.__class__.__name__ != "Group": return 0.0
+        # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!TODO TODO TODO TODO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+        
+        
+        
+        
+        # TODO check if we already have this likeness BEFORE calculating and not on the adding stage
         # TODO rethink this all!
         l_compb = 0
         for el1 in self.elements:
@@ -137,7 +159,7 @@ class Group():
                         # for all other, do only check links
                         for l1 in el1.links:
                             for l2 in el2.links:
-                                if l1.checkme(l2):
+                                if l1.checkme(l2): # TODO HERE! checkme DOES NOT WORK THAT WAY ERRRRORRRRR!!!!!!
                                     l_compb += l1.value # use link weight?
                     else:
                         #if el1.__class__.__name == "Group":
@@ -148,21 +170,24 @@ class Group():
                         #    if
                         pass # no comparison exists between a group and a chunk!
         # TODO: check how counting only first-level elements affects the system??
-        # likeness = (COEFF_LIKE_TIME * l_timeb + l_compb) / (len(self.elements) + len(group.elements));
         likeness = l_compb / (len(self.elements) + len(group.elements));
         if likeness < 0.1:
             return likeness
         newlink = LikeLink(self, group, likeness)
-        if not newlink in self.links:
-            self.links.append(newlink)
-        self.links = sorted(self.links, Link_compare);
+        #if not newlink in self.links:
+        #    self.links.append(newlink)
+        self.links.append(newlink)
+        group.links.append(newlink) # two-way linking...!
+        
+        # TODO sort before wakeup once! this is very expensive!
+        # self.links = sorted(self.links, Link_compare);
         return likeness
 
     def __repr__(self):
         return "<Group weight:%s, ts:%s, te:%s, elcount:%s, links:%s>" % (self.weight, self.timeStart, self.timeEnd, len(self.elements), len(self.links))
 
     def __eq__(self, other):
-        # TODO TODO HERE
+        # does this work??
         if self.elements == other.elements: return True
         return False
 
@@ -184,7 +209,7 @@ def coma_group_iter(lgroups):
         while deep < max_deep:
             #if curGroup.__class__.__name__ != "Group": break # TODO: unnessessary check?
             if len(curGroup.links) == 0: break
-            curGroup=random.choice(curGroup.links).to(curGroup)
+            curGroup=(random.choice(curGroup.links)).to(curGroup)
             l_elements.append(curGroup)
             deep+=1
         # TODO: filter out 'bad' groups? or clean garbage?
@@ -202,7 +227,9 @@ def dream_iter(lgroups):
         l_elements=[curGroup]
         while deep < max_deep:
             nextGroup=random.choice(lgroups)
-            curGroup.links.append(CauseLink(curGroup, nextGroup)) # random cause-consequence? hehe ;-)
+            clink = CauseLink(curGroup, nextGroup)
+            curGroup.links.append(clink) # random cause-consequence? hehe ;-)
+            nextGroup.links.append(clink) # two-way linking!
             curGroup = nextGroup
             deep+=1
 
@@ -215,12 +242,24 @@ def main():
 
     global lgroups
     lgroups = ListLike()
-
+    print "Initializing lgroups from %s samples" % len(fdata)
+    sys.stdout.flush()
     ic = 0
-    for s in fdata:
-        lgroups.append( Group(elements=[StringChunk(data=s, timeIn=ic)]) )
-        ic += len(s)
+    i = 0
+    try:
+            for s in fdata:
+                lgroups.append( Group( [ StringChunk(data=s, timeIn=ic) ] ) )
+                ic += len(s)
+                i += 1
+                if (i % 1000) == 0: print "Samples parsed:", i
+    except KeyboardInterrupt:
+        print "Interrupted at"
+        traceback.print_exc()
+        STATS["deepness"] = float(STATS["deepness"])/float(i) # compute average!
+        print STATS
     i=0
+    print "Done, starting dreaming"
+    sys.stdout.flush()
     ts = time.time()
     try:
         while i<50000:
