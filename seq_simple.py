@@ -207,7 +207,6 @@ def coma_group_iter(lgroups):
         curGroup = random.choice(lgroups)
         l_elements=[curGroup]
         while deep < max_deep:
-            #if curGroup.__class__.__name__ != "Group": break # TODO: unnessessary check?
             if len(curGroup.links) == 0: break
             curGroup=(random.choice(curGroup.links)).to(curGroup)
             l_elements.append(curGroup)
